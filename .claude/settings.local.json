@@ -5,7 +5,8 @@
       "Bash(pnpm add:*)",
       "Bash(npm install:*)",
       "Bash(npm run:*)",
-      "Bash(/Users/shri/dev/kooru/app/layouts/app.vue:*)"
+      "Bash(/Users/shri/dev/kooru/app/layouts/app.vue:*)",
+      "Bash(git add:*)"
     ]
   }
 }
