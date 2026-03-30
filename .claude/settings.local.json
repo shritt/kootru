@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:context7.com)",
+      "Bash(pnpm add:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(/Users/shri/dev/kooru/app/layouts/app.vue:*)"
+    ]
+  }
+}
