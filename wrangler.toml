@@ -1,0 +1,8 @@
+name = "kooru"
+pages_build_output_dir = ".output/public"
+compatibility_date = "2025-01-15"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+# NUXT_PUBLIC_POCKETBASE_URL is set via Cloudflare Pages dashboard
+# under Settings → Environment Variables (do not commit secrets here)

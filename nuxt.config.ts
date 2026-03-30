@@ -53,6 +53,10 @@ export default defineNuxtConfig({
     }
   },
 
+  nitro: {
+    preset: 'cloudflare-pages'
+  },
+
   compatibilityDate: '2025-01-15',
 
   eslint: {
