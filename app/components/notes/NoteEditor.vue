@@ -65,7 +65,6 @@ watch(() => props.noteId, async (id) => {
   attachedFiles.value = note.expand?.attachments ?? []
   originalTitle.value = note.title
   originalContent.value = note.content
-  showPreview.value = true
 }, { immediate: true })
 
 onMounted(fetchTags)
@@ -199,6 +198,15 @@ const doDelete = async () => {
 defineShortcuts({ meta_s: () => isDirty.value && save() })
 
 const renderedContent = computed(() => renderMarkdown(content.value))
+
+const isImageFile = (file: FileRecord) => /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(file.name)
+const fileIcon = (file: FileRecord) => {
+  if (/\.(pdf)$/i.test(file.name)) return 'i-lucide-file-text'
+  if (/\.(zip|tar|gz|rar)$/i.test(file.name)) return 'i-lucide-archive'
+  if (/\.(mp4|mov|avi|mkv)$/i.test(file.name)) return 'i-lucide-film'
+  if (/\.(mp3|wav|ogg|m4a)$/i.test(file.name)) return 'i-lucide-music'
+  return 'i-lucide-file'
+}
 </script>
 
 <template>
@@ -210,79 +218,63 @@ const renderedContent = computed(() => renderMarkdown(content.value))
 
   <!-- Editor -->
   <div v-else class="flex flex-1 flex-col overflow-hidden">
-    <!-- Toolbar — h-14 matches other panel headers -->
-    <div class="flex h-14 shrink-0 items-center gap-2 border-b border-default px-4">
-      <UInput
-        v-model="title"
-        placeholder="Note title"
-        variant="none"
-        size="lg"
-        class="flex-1 font-semibold"
-      />
-      <div class="flex items-center gap-0.5">
-        <UButton
-          :icon="showPreview ? 'i-lucide-pencil' : 'i-lucide-eye'"
-          variant="ghost"
-          color="neutral"
-          size="sm"
-          :aria-label="showPreview ? 'Edit' : 'Preview'"
-          @click="showPreview = !showPreview"
+    <!-- Toolbar -->
+    <div class="shrink-0 border-b border-default">
+      <!-- Row 1: title + actions -->
+      <div class="flex h-14 items-center gap-2 px-4">
+        <UInput
+          v-model="title"
+          placeholder="Note title"
+          variant="none"
+          size="lg"
+          class="flex-1 font-semibold"
         />
-        <UButton
-          icon="i-lucide-star"
-          variant="ghost"
-          :color="isFavorite ? 'warning' : 'neutral'"
-          size="sm"
-          aria-label="Favourite"
-          @click="toggleFavorite"
-        />
-        <UButton
-          icon="i-lucide-pin"
-          variant="ghost"
-          :color="isSticky ? 'primary' : 'neutral'"
-          size="sm"
-          aria-label="Pin"
-          @click="toggleSticky"
-        />
-        <UButton
-          v-if="!isNew"
-          icon="i-lucide-trash-2"
-          variant="ghost"
-          color="error"
-          size="sm"
-          aria-label="Delete note"
-          @click="deleteConfirmOpen = true"
-        />
-        <UButton
-          :label="isNew ? 'Create' : 'Save'"
-          size="sm"
-          :loading="saving"
-          :disabled="!isDirty"
-          class="ml-1"
-          @click="save"
-        />
+        <div class="flex items-center gap-0.5">
+          <UButton
+            :icon="showPreview ? 'i-lucide-eye' : 'i-lucide-pencil'"
+            variant="ghost"
+            :color="showPreview ? 'primary' : 'neutral'"
+            size="sm"
+            :aria-label="showPreview ? 'Switch to edit' : 'Switch to preview'"
+            @click="showPreview = !showPreview"
+          />
+          <UButton
+            icon="i-lucide-star"
+            variant="ghost"
+            :color="isFavorite ? 'warning' : 'neutral'"
+            size="sm"
+            aria-label="Favourite"
+            @click="toggleFavorite"
+          />
+          <UButton
+            icon="i-lucide-pin"
+            variant="ghost"
+            :color="isSticky ? 'primary' : 'neutral'"
+            size="sm"
+            aria-label="Pin"
+            @click="toggleSticky"
+          />
+          <UButton
+            v-if="!isNew"
+            icon="i-lucide-trash-2"
+            variant="ghost"
+            color="error"
+            size="sm"
+            aria-label="Delete note"
+            @click="deleteConfirmOpen = true"
+          />
+          <UButton
+            :label="isNew ? 'Create' : 'Save'"
+            size="sm"
+            :loading="saving"
+            :disabled="!isDirty"
+            class="ml-1"
+            @click="save"
+          />
+        </div>
       </div>
-    </div>
-
-    <!-- Content -->
-    <div class="flex-1 overflow-hidden">
-      <textarea
-        v-if="!showPreview"
-        v-model="content"
-        placeholder="Write in markdown..."
-        class="h-full w-full resize-none bg-transparent p-4 text-sm outline-none font-mono leading-relaxed"
-      />
-      <div
-        v-else
-        class="prose prose-sm dark:prose-invert h-full w-full overflow-y-auto p-4 max-w-none"
-        v-html="renderedContent"
-      />
-    </div>
-
-    <!-- Footer: tags + attachments -->
-    <div class="shrink-0 border-t border-default px-4 py-3 space-y-2">
-      <!-- Tags -->
-      <div class="flex flex-wrap items-center gap-1.5 min-h-6">
+      <!-- Row 2: tags -->
+      <div class="flex flex-wrap items-center gap-1.5 px-4 pb-2 min-h-8">
         <UIcon name="i-lucide-tag" class="size-3.5 text-muted shrink-0" />
         <UBadge
           v-for="tag in selectedTags"
@@ -334,36 +326,65 @@ const renderedContent = computed(() => renderMarkdown(content.value))
           </template>
         </UPopover>
       </div>
+    </div>
 
-      <!-- Attachments -->
-      <div class="flex flex-wrap items-center gap-1.5 min-h-6">
-        <UIcon name="i-lucide-paperclip" class="size-3.5 text-muted shrink-0" />
-        <UBadge
+    <!-- Content -->
+    <div class="flex-1 overflow-hidden">
+      <textarea
+        v-if="!showPreview"
+        v-model="content"
+        placeholder="Write in markdown..."
+        class="h-full w-full resize-none bg-transparent p-4 text-sm outline-none font-mono leading-relaxed"
+      />
+      <div
+        v-else
+        class="prose prose-sm dark:prose-invert h-full w-full overflow-y-auto p-4 max-w-none"
+        v-html="renderedContent"
+      />
+    </div>
+
+    <!-- Footer: attachments -->
+    <div v-if="attachedFiles.length > 0 || true" class="shrink-0 border-t border-default px-4 py-3">
+      <div class="space-y-1.5">
+        <div
           v-for="file in attachedFiles"
           :key="file.id"
-          variant="subtle"
-          color="neutral"
-          size="sm"
-          class="gap-1"
+          class="group flex items-center gap-3 rounded-lg border border-default bg-background px-3 py-2 hover:bg-elevated transition-colors"
         >
-          <a :href="getFileUrl(file)" target="_blank" class="hover:underline max-w-32 truncate block">
-            {{ file.name }}
+          <!-- Thumbnail or icon -->
+          <a :href="getFileUrl(file)" target="_blank" class="size-9 shrink-0 rounded overflow-hidden flex items-center justify-center bg-elevated">
+            <img
+              v-if="isImageFile(file)"
+              :src="getFileUrl(file)"
+              :alt="file.name"
+              class="size-full object-cover"
+            />
+            <UIcon v-else :name="fileIcon(file)" class="size-5 text-muted" />
           </a>
-          <button @click="removeAttachment(file.id)">
-            <UIcon name="i-lucide-x" class="size-3" />
+          <!-- Name -->
+          <a :href="getFileUrl(file)" target="_blank" class="flex-1 min-w-0 hover:underline">
+            <p class="text-sm font-medium text-highlighted truncate">{{ file.name }}</p>
+          </a>
+          <!-- Remove -->
+          <button
+            class="opacity-0 group-hover:opacity-100 transition-opacity"
+            @click="removeAttachment(file.id)"
+          >
+            <UIcon name="i-lucide-x" class="size-3.5 text-muted hover:text-error transition-colors" />
           </button>
-        </UBadge>
-        <input ref="fileInputRef" type="file" class="hidden" @change="handleFileSelect" />
-        <UButton
-          icon="i-lucide-plus"
-          size="xs"
-          variant="ghost"
-          color="neutral"
-          label="Attach"
-          :loading="uploading"
-          @click="fileInputRef?.click()"
-        />
+        </div>
       </div>
+      <input ref="fileInputRef" type="file" class="hidden" @change="handleFileSelect" />
+      <UButton
+        icon="i-lucide-paperclip"
+        size="xs"
+        variant="ghost"
+        color="neutral"
+        label="Attach file"
+        :loading="uploading"
+        :class="attachedFiles.length > 0 ? 'mt-2' : ''"
+        @click="fileInputRef?.click()"
+      />
     </div>
 
     <!-- Delete confirm modal -->
