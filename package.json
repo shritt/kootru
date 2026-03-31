@@ -9,7 +9,7 @@
     "postinstall": "nuxt prepare",
     "lint": "eslint .",
     "typecheck": "nuxt typecheck",
-    "deploy": "nuxt build && npx wrangler pages deploy"
+    "deploy": "nuxt build && npx wrangler pages deploy dist"
   },
   "dependencies": {
     "@iconify-json/lucide": "^1.2.98",
