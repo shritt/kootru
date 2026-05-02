@@ -5,8 +5,7 @@ const { currentUser, logout } = useAuth()
 
 const navItems = [
   { label: 'Notes', icon: 'i-lucide-file-text', to: '/' },
-  { label: 'Tags', icon: 'i-lucide-tag', to: '/tags' },
-  { label: 'Files', icon: 'i-lucide-paperclip', to: '/files' }
+  { label: 'Tags', icon: 'i-lucide-tag', to: '/tags' }
 ]
 </script>
 

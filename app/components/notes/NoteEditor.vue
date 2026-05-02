@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { NoteRecord, TagRecord, FileRecord } from '~/types/pocketbase'
+import type { NoteRecord, TagRecord } from '~/types/pocketbase'
 
 const props = defineProps<{ noteId: string | undefined }>()
 const emit = defineEmits<{
@@ -10,14 +10,12 @@ const emit = defineEmits<{
 const pb = usePocketBase()
 const { createNote, updateNote, deleteNote } = useNotes()
 const { tags: allTags, fetchTags, createTag } = useTags()
-const { uploadFile, getFileUrl } = useFiles()
 const toast = useToast()
 
 const isNew = computed(() => !props.noteId || props.noteId === 'new')
 const showPreview = ref(false)
 const saving = ref(false)
 const deleting = ref(false)
-const uploading = ref(false)
 const deleteConfirmOpen = ref(false)
 const tagPopoverOpen = ref(false)
 const tagSearch = ref('')
@@ -25,10 +23,8 @@ const tagSearch = ref('')
 // Form state
 const title = ref('')
 const content = ref('')
-const isSticky = ref(false)
-const isFavorite = ref(false)
+const isPinned = ref(false)
 const selectedTags = ref<TagRecord[]>([])
-const attachedFiles = ref<FileRecord[]>([])
 
 // Dirty tracking
 const originalTitle = ref('')
@@ -42,10 +38,8 @@ const isDirty = computed(() => {
 watch(() => props.noteId, async (id) => {
   title.value = ''
   content.value = ''
-  isSticky.value = false
-  isFavorite.value = false
+  isPinned.value = false
   selectedTags.value = []
-  attachedFiles.value = []
   originalTitle.value = ''
   originalContent.value = ''
 
@@ -55,43 +49,29 @@ watch(() => props.noteId, async (id) => {
   }
 
   const note = await pb.collection('notes').getOne<NoteRecord>(id, {
-    expand: 'tags,attachments'
+    expand: 'linked_tags'
   })
   title.value = note.title
   content.value = note.content
-  isSticky.value = note.is_sticky
-  isFavorite.value = note.is_favorite
-  selectedTags.value = note.expand?.tags ?? []
-  attachedFiles.value = note.expand?.attachments ?? []
+  isPinned.value = note.is_pinned
+  selectedTags.value = note.expand?.linked_tags ?? []
   originalTitle.value = note.title
   originalContent.value = note.content
+  showPreview.value = true
 }, { immediate: true })
 
 onMounted(fetchTags)
 
-// Pin / Favorite — save immediately on existing notes
-const toggleSticky = async () => {
-  isSticky.value = !isSticky.value
+// Pin — save immediately on existing notes
+const togglePin = async () => {
+  isPinned.value = !isPinned.value
   if (!isNew.value && props.noteId) {
     try {
-      await updateNote(props.noteId, { is_sticky: isSticky.value })
+      await updateNote(props.noteId, { is_pinned: isPinned.value })
     }
     catch {
-      isSticky.value = !isSticky.value
+      isPinned.value = !isPinned.value
       toast.add({ title: 'Failed to update pin', color: 'error' })
-    }
-  }
-}
-
-const toggleFavorite = async () => {
-  isFavorite.value = !isFavorite.value
-  if (!isNew.value && props.noteId) {
-    try {
-      await updateNote(props.noteId, { is_favorite: isFavorite.value })
-    }
-    catch {
-      isFavorite.value = !isFavorite.value
-      toast.add({ title: 'Failed to update favourite', color: 'error' })
     }
   }
 }
@@ -100,7 +80,7 @@ const toggleFavorite = async () => {
 const filteredTags = computed(() => {
   const q = tagSearch.value.toLowerCase()
   return allTags.value.filter(t =>
-    t.name.toLowerCase().includes(q) &&
+    t.title.toLowerCase().includes(q) &&
     !selectedTags.value.some(s => s.id === t.id)
   )
 })
@@ -112,9 +92,9 @@ const addTag = (tag: TagRecord) => {
 }
 
 const createAndAddTag = async () => {
-  const name = tagSearch.value.trim()
-  if (!name) return
-  const tag = await createTag(name)
+  const title = tagSearch.value.trim()
+  if (!title) return
+  const tag = await createTag(title)
   selectedTags.value.push(tag)
   tagSearch.value = ''
   tagPopoverOpen.value = false
@@ -124,30 +104,6 @@ const removeTag = (id: string) => {
   selectedTags.value = selectedTags.value.filter(t => t.id !== id)
 }
 
-// Files
-const fileInputRef = ref<HTMLInputElement>()
-
-const handleFileSelect = async (e: Event) => {
-  const file = (e.target as HTMLInputElement).files?.[0]
-  if (!file) return
-  uploading.value = true
-  try {
-    const record = await uploadFile(file)
-    attachedFiles.value.push(record)
-  }
-  catch {
-    toast.add({ title: 'Upload failed', color: 'error' })
-  }
-  finally {
-    uploading.value = false
-    if (fileInputRef.value) fileInputRef.value.value = ''
-  }
-}
-
-const removeAttachment = (id: string) => {
-  attachedFiles.value = attachedFiles.value.filter(f => f.id !== id)
-}
-
 // Save
 const save = async () => {
   saving.value = true
@@ -155,10 +111,8 @@ const save = async () => {
     const data = {
       title: title.value,
       content: content.value,
-      is_sticky: isSticky.value,
-      is_favorite: isFavorite.value,
-      tags: selectedTags.value.map(t => t.id),
-      attachments: attachedFiles.value.map(f => f.id)
+      is_pinned: isPinned.value,
+      linked_tags: selectedTags.value.map(t => t.id)
     }
     const note = isNew.value
       ? await createNote(data)
@@ -198,15 +152,6 @@ const doDelete = async () => {
 defineShortcuts({ meta_s: () => isDirty.value && save() })
 
 const renderedContent = computed(() => renderMarkdown(content.value))
-
-const isImageFile = (file: FileRecord) => /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(file.name)
-const fileIcon = (file: FileRecord) => {
-  if (/\.(pdf)$/i.test(file.name)) return 'i-lucide-file-text'
-  if (/\.(zip|tar|gz|rar)$/i.test(file.name)) return 'i-lucide-archive'
-  if (/\.(mp4|mov|avi|mkv)$/i.test(file.name)) return 'i-lucide-film'
-  if (/\.(mp3|wav|ogg|m4a)$/i.test(file.name)) return 'i-lucide-music'
-  return 'i-lucide-file'
-}
 </script>
 
 <template>
@@ -220,16 +165,70 @@ const fileIcon = (file: FileRecord) => {
   <div v-else class="flex flex-1 flex-col overflow-hidden">
     <!-- Toolbar -->
     <div class="shrink-0 border-b border-default">
-      <!-- Row 1: title + actions -->
       <div class="flex h-14 items-center gap-2 px-4">
+        <!-- Title -->
         <UInput
           v-model="title"
           placeholder="Note title"
           variant="none"
           size="lg"
-          class="flex-1 font-semibold"
+          class="font-semibold shrink-0"
+          style="width: auto; min-width: 0;"
         />
-        <div class="flex items-center gap-0.5">
+        <!-- Tags inline -->
+        <div class="flex flex-1 flex-wrap items-center gap-1.5 min-w-0 overflow-hidden">
+          <UBadge
+            v-for="tag in selectedTags"
+            :key="tag.id"
+            variant="subtle"
+            color="primary"
+            size="sm"
+            class="cursor-pointer gap-1 shrink-0"
+            @click="removeTag(tag.id)"
+          >
+            {{ tag.title }}
+            <UIcon name="i-lucide-x" class="size-3" />
+          </UBadge>
+          <UPopover v-model:open="tagPopoverOpen">
+            <UButton icon="i-lucide-tag" size="xs" variant="ghost" color="neutral" aria-label="Add tag" />
+            <template #content>
+              <div class="w-48 p-2 space-y-1">
+                <UInput
+                  v-model="tagSearch"
+                  placeholder="Search or create…"
+                  size="sm"
+                  autofocus
+                  @keydown.enter.prevent="createAndAddTag"
+                />
+                <div class="max-h-40 overflow-y-auto space-y-0.5 pt-1">
+                  <button
+                    v-for="tag in filteredTags"
+                    :key="tag.id"
+                    class="w-full text-left rounded px-2 py-1.5 text-sm hover:bg-elevated transition-colors"
+                    @click="addTag(tag)"
+                  >
+                    {{ tag.title }}
+                  </button>
+                  <button
+                    v-if="tagSearch.trim() && !filteredTags.some(t => t.title === tagSearch.trim())"
+                    class="w-full text-left rounded px-2 py-1.5 text-sm text-primary hover:bg-elevated transition-colors"
+                    @click="createAndAddTag"
+                  >
+                    Create "{{ tagSearch.trim() }}"
+                  </button>
+                  <p
+                    v-if="!tagSearch && filteredTags.length === 0"
+                    class="px-2 py-1.5 text-xs text-muted"
+                  >
+                    No more tags
+                  </p>
+                </div>
+              </div>
+            </template>
+          </UPopover>
+        </div>
+        <!-- Action buttons -->
+        <div class="flex items-center gap-0.5 shrink-0">
           <UButton
             :icon="showPreview ? 'i-lucide-eye' : 'i-lucide-pencil'"
             variant="ghost"
@@ -239,20 +238,12 @@ const fileIcon = (file: FileRecord) => {
             @click="showPreview = !showPreview"
           />
           <UButton
-            icon="i-lucide-star"
-            variant="ghost"
-            :color="isFavorite ? 'warning' : 'neutral'"
-            size="sm"
-            aria-label="Favourite"
-            @click="toggleFavorite"
-          />
-          <UButton
             icon="i-lucide-pin"
             variant="ghost"
-            :color="isSticky ? 'primary' : 'neutral'"
+            :color="isPinned ? 'primary' : 'neutral'"
             size="sm"
             aria-label="Pin"
-            @click="toggleSticky"
+            @click="togglePin"
           />
           <UButton
             v-if="!isNew"
@@ -273,59 +264,6 @@ const fileIcon = (file: FileRecord) => {
           />
         </div>
       </div>
-      <!-- Row 2: tags -->
-      <div class="flex flex-wrap items-center gap-1.5 px-4 pb-2 min-h-8">
-        <UIcon name="i-lucide-tag" class="size-3.5 text-muted shrink-0" />
-        <UBadge
-          v-for="tag in selectedTags"
-          :key="tag.id"
-          variant="subtle"
-          color="primary"
-          size="sm"
-          class="cursor-pointer gap-1"
-          @click="removeTag(tag.id)"
-        >
-          {{ tag.name }}
-          <UIcon name="i-lucide-x" class="size-3" />
-        </UBadge>
-        <UPopover v-model:open="tagPopoverOpen">
-          <UButton icon="i-lucide-plus" size="xs" variant="ghost" color="neutral" label="Add tag" />
-          <template #content>
-            <div class="w-48 p-2 space-y-1">
-              <UInput
-                v-model="tagSearch"
-                placeholder="Search or create…"
-                size="sm"
-                autofocus
-                @keydown.enter.prevent="createAndAddTag"
-              />
-              <div class="max-h-40 overflow-y-auto space-y-0.5 pt-1">
-                <button
-                  v-for="tag in filteredTags"
-                  :key="tag.id"
-                  class="w-full text-left rounded px-2 py-1.5 text-sm hover:bg-elevated transition-colors"
-                  @click="addTag(tag)"
-                >
-                  {{ tag.name }}
-                </button>
-                <button
-                  v-if="tagSearch.trim() && !filteredTags.some(t => t.name === tagSearch.trim())"
-                  class="w-full text-left rounded px-2 py-1.5 text-sm text-primary hover:bg-elevated transition-colors"
-                  @click="createAndAddTag"
-                >
-                  Create "{{ tagSearch.trim() }}"
-                </button>
-                <p
-                  v-if="!tagSearch && filteredTags.length === 0"
-                  class="px-2 py-1.5 text-xs text-muted"
-                >
-                  No more tags
-                </p>
-              </div>
-            </div>
-          </template>
-        </UPopover>
-      </div>
     </div>
 
     <!-- Content -->
@@ -340,50 +278,6 @@ const fileIcon = (file: FileRecord) => {
         v-else
         class="prose prose-sm dark:prose-invert h-full w-full overflow-y-auto p-4 max-w-none"
         v-html="renderedContent"
-      />
-    </div>
-
-    <!-- Footer: attachments -->
-    <div v-if="attachedFiles.length > 0 || true" class="shrink-0 border-t border-default px-4 py-3">
-      <div class="space-y-1.5">
-        <div
-          v-for="file in attachedFiles"
-          :key="file.id"
-          class="group flex items-center gap-3 rounded-lg border border-default bg-background px-3 py-2 hover:bg-elevated transition-colors"
-        >
-          <!-- Thumbnail or icon -->
-          <a :href="getFileUrl(file)" target="_blank" class="size-9 shrink-0 rounded overflow-hidden flex items-center justify-center bg-elevated">
-            <img
-              v-if="isImageFile(file)"
-              :src="getFileUrl(file)"
-              :alt="file.name"
-              class="size-full object-cover"
-            />
-            <UIcon v-else :name="fileIcon(file)" class="size-5 text-muted" />
-          </a>
-          <!-- Name -->
-          <a :href="getFileUrl(file)" target="_blank" class="flex-1 min-w-0 hover:underline">
-            <p class="text-sm font-medium text-highlighted truncate">{{ file.name }}</p>
-          </a>
-          <!-- Remove -->
-          <button
-            class="opacity-0 group-hover:opacity-100 transition-opacity"
-            @click="removeAttachment(file.id)"
-          >
-            <UIcon name="i-lucide-x" class="size-3.5 text-muted hover:text-error transition-colors" />
-          </button>
-        </div>
-      </div>
-      <input ref="fileInputRef" type="file" class="hidden" @change="handleFileSelect" />
-      <UButton
-        icon="i-lucide-paperclip"
-        size="xs"
-        variant="ghost"
-        color="neutral"
-        label="Attach file"
-        :loading="uploading"
-        :class="attachedFiles.length > 0 ? 'mt-2' : ''"
-        @click="fileInputRef?.click()"
       />
     </div>
 

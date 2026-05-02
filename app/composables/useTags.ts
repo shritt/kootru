@@ -5,13 +5,13 @@ export const useTags = () => {
   const tags = useState<TagRecord[]>('tags', () => [])
 
   const fetchTags = async () => {
-    tags.value = await pb.collection('tags').getFullList<TagRecord>({ sort: 'name' })
+    tags.value = await pb.collection('tags').getFullList<TagRecord>({ sort: 'title' })
   }
 
-  const createTag = async (name: string) => {
-    const tag = await pb.collection('tags').create<TagRecord>({ name })
+  const createTag = async (title: string) => {
+    const tag = await pb.collection('tags').create<TagRecord>({ title })
     tags.value.push(tag)
-    tags.value.sort((a, b) => a.name.localeCompare(b.name))
+    tags.value.sort((a, b) => a.title.localeCompare(b.title))
     return tag
   }
 

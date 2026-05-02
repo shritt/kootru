@@ -13,7 +13,7 @@ onMounted(() => Promise.all([fetchTags(), fetchNotes()]))
 const noteCounts = computed(() => {
   const counts: Record<string, number> = {}
   for (const note of notes.value) {
-    for (const tagId of note.tags) {
+    for (const tagId of note.linked_tags) {
       counts[tagId] = (counts[tagId] || 0) + 1
     }
   }

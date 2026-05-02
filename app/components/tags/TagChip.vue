@@ -13,7 +13,7 @@ defineEmits<{ delete: [id: string] }>()
 <template>
   <div class="flex items-center gap-2 rounded-lg border border-default bg-background px-3 py-2">
     <UIcon name="i-lucide-tag" class="size-3.5 text-muted shrink-0" />
-    <span class="text-sm font-medium text-highlighted flex-1">{{ tag.name }}</span>
+    <span class="text-sm font-medium text-highlighted flex-1">{{ tag.title }}</span>
     <UBadge v-if="count !== undefined" :label="String(count)" variant="subtle" color="neutral" size="xs" />
     <UButton
       v-if="deletable"

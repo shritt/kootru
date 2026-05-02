@@ -23,7 +23,6 @@ const updatedAt = computed(() =>
       {{ note.title || 'Untitled' }}
     </span>
     <span class="shrink-0 text-xs text-muted">{{ updatedAt }}</span>
-    <UIcon v-if="note.is_sticky" name="i-lucide-pin" class="size-3 shrink-0 text-primary" />
-    <UIcon v-if="note.is_favorite" name="i-lucide-star" class="size-3 shrink-0 text-yellow-500" />
+    <UIcon v-if="note.is_pinned" name="i-lucide-pin" class="size-3 shrink-0 text-primary" />
   </button>
 </template>

@@ -1,23 +1,24 @@
 import type { RecordModel } from 'pocketbase'
 
 export interface TagRecord extends RecordModel {
-  name: string
+  title: string
 }
 
-export interface FileRecord extends RecordModel {
+export interface ProjectRecord extends RecordModel {
   name: string
-  media: string
+  description: string
+  color: string
 }
 
 export interface NoteRecord extends RecordModel {
   title: string
   content: string
-  is_sticky: boolean
-  is_favorite: boolean
-  tags: string[]
-  attachments: string[]
+  project: string
+  linked_tags: string[]
+  is_pinned: boolean
+  is_dropped: boolean
   expand?: {
-    tags?: TagRecord[]
-    attachments?: FileRecord[]
+    linked_tags?: TagRecord[]
+    project?: ProjectRecord
   }
 }
